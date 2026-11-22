@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: ai-sre-agent
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - {key: GROQ_API_KEY, sync: false}
+      - {key: API_KEY, generateValue: true}   # shown in the Render dashboard; the UI prompts for it once

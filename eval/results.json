@@ -1,0 +1,83 @@
+{
+ "results": [
+  {
+   "name": "rules (no retrieval)",
+   "correct": 30,
+   "total": 40,
+   "accuracy": 0.75,
+   "wrong_but_confident": 0,
+   "groq_answered": null,
+   "by_kind": {
+    "bad_deploy": "5/5",
+    "config_change": "5/5",
+    "db_pool": "3/5",
+    "memory_leak": "3/5",
+    "dependency_timeout": "3/5",
+    "cpu_saturation": "3/5",
+    "disk_full": "3/5",
+    "unknown": "5/5"
+   },
+   "failures": [
+    "db_pool#2: expected db_pool, got insufficient_evidence",
+    "db_pool#5: expected db_pool, got insufficient_evidence",
+    "memory_leak#2: expected memory_leak, got insufficient_evidence",
+    "memory_leak#5: expected memory_leak, got insufficient_evidence",
+    "dependency_timeout#2: expected dependency_timeout, got insufficient_evidence",
+    "dependency_timeout#5: expected dependency_timeout, got insufficient_evidence",
+    "cpu_saturation#2: expected cpu_saturation, got insufficient_evidence",
+    "cpu_saturation#5: expected cpu_saturation, got insufficient_evidence",
+    "disk_full#2: expected disk_full, got insufficient_evidence",
+    "disk_full#5: expected disk_full, got insufficient_evidence"
+   ]
+  },
+  {
+   "name": "rules + retrieval",
+   "correct": 40,
+   "total": 40,
+   "accuracy": 1.0,
+   "wrong_but_confident": 0,
+   "groq_answered": null,
+   "by_kind": {
+    "bad_deploy": "5/5",
+    "config_change": "5/5",
+    "db_pool": "5/5",
+    "memory_leak": "5/5",
+    "dependency_timeout": "5/5",
+    "cpu_saturation": "5/5",
+    "disk_full": "5/5",
+    "unknown": "5/5"
+   },
+   "failures": []
+  },
+  {
+   "name": "Groq agent (openai/gpt-oss-120b) + verifier (seeds 1,2,3,4,5)",
+   "correct": 40,
+   "total": 40,
+   "accuracy": 1.0,
+   "wrong_but_confident": 0,
+   "groq_answered": 1,
+   "by_kind": {
+    "bad_deploy": "5/5",
+    "config_change": "5/5",
+    "db_pool": "5/5",
+    "memory_leak": "5/5",
+    "dependency_timeout": "5/5",
+    "cpu_saturation": "5/5",
+    "disk_full": "5/5",
+    "unknown": "5/5"
+   },
+   "failures": []
+  },
+  {
+   "name": "LIVE fault injection on running stack (rules + retrieval)",
+   "correct": 7,
+   "total": 8,
+   "accuracy": 0.875,
+   "wrong_but_confident": 0,
+   "by_kind": {},
+   "failures": [
+    "cpu_saturation (+decoy deploy): insufficient_evidence conf=0.00 FAIL"
+   ]
+  }
+ ]
+}

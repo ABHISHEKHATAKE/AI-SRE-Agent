@@ -1,0 +1,54 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI SRE Agent</title>
+<style>
+:root{--bg:#fff;--fg:#1a1a1a;--mut:#666;--card:#f6f7f9;--bd:#dde0e5;--ac:#4f46e5;--ok:#15803d;--bad:#b91c1c}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1115;--fg:#e8e8e8;--mut:#9aa0a6;--card:#181b21;--bd:#2a2e36;--ac:#818cf8;--ok:#4ade80;--bad:#f87171}}
+*{box-sizing:border-box}body{margin:0;font:15px system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+main{max-width:980px;margin:0 auto;padding:24px 16px}h1{margin:0 0 4px}.mut{color:var(--mut)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:16px;margin:14px 0}
+.row{display:flex;gap:10px;flex-wrap:wrap}select,input,button{font:inherit;padding:9px 12px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--fg)}
+input{flex:1;min-width:240px}button{background:var(--ac);color:#fff;border:0;cursor:pointer}button:disabled{opacity:.5}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.bar{height:10px;background:var(--bd);border-radius:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok)}
+.tag{display:inline-block;padding:2px 8px;border-radius:99px;background:var(--bd);font-size:12px;margin-right:6px}
+li{margin:5px 0}svg{width:100%;height:60px}.big{font-size:20px;font-weight:600}
+</style></head><body><main>
+<h1>AI SRE Agent</h1><div class="mut">Planner → Logs / Metrics / Deploys / RAG → Evidence correlation → Root-cause report</div>
+<div class="card"><div class="row"><select id="sc"></select><input id="q"><select id="seed"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select><select id="mode"><option value="rules">Rules + retrieval</option><option value="llm">Groq tool-calling agent</option></select><button id="go">Investigate</button></div>
+<div class="mut" id="st" style="margin-top:8px"></div></div>
+<div class="card" id="livebox" style="display:none"><b>Live fault injection</b> <span class="mut">(real running service; 1 tick = one telemetry sample)</span>
+<div class="row" style="margin-top:8px"><select id="fk"><option>bad_deploy</option><option>config_change</option><option>db_pool</option><option>memory_leak</option><option>dependency_timeout</option><option>cpu_saturation</option><option>disk_full</option><option>unknown</option></select>
+<label class="mut"><input type="checkbox" id="dc" style="min-width:0"> add decoy deploy</label><button id="inj">Inject fault</button><button id="clr" style="background:#555">Clear</button></div>
+<div class="mut" id="ls" style="margin-top:8px"></div><div class="mut">Inject, wait ~15-30s for symptoms to build, then click Investigate.</div></div>
+<div class="grid" id="charts"></div><div id="out"></div>
+<div class="card"><b>Benchmark (generated incidents)</b><ul id="bench"></ul></div>
+<div class="card"><b>Recent investigations</b><ul id="hist"></ul></div>
+</main><script>
+const _f=window.fetch;window.fetch=(u,o={})=>{const k=localStorage.getItem("apikey");if(k)o.headers={...(o.headers||{}),"X-API-Key":k};return _f(u,o).then(r=>{if(r.status===401){const k=prompt("API key required");if(k){localStorage.setItem("apikey",k);location.reload()}}return r})};
+const $=id=>document.getElementById(id),esc=s=>String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const Q="Why did the payment service experience a sudden spike in 500 errors at 2:15 PM?";$("q").value=Q;
+function spark(name,v){const mx=Math.max(...v),mn=Math.min(...v),p=v.map((y,i)=>`${i*10},${58-(y-mn)/((mx-mn)||1)*54}`).join(" ");
+return `<div class="card"><div class="mut">${name} <b>(max ${mx})</b></div><svg viewBox="0 0 200 60" preserveAspectRatio="none"><polyline fill="none" stroke="var(--ac)" stroke-width="2" points="${p}"/></svg></div>`}
+async function charts(){const t=await (await fetch("/api/telemetry/"+$("sc").value+"?seed="+$("seed").value)).json();$("charts").innerHTML=Object.entries(t.metrics).map(([k,v])=>spark(k,v)).join("")}
+async function bench(){const b=await (await fetch("/api/benchmark")).json();$("bench").innerHTML=(b.results||[]).map(r=>`<li>${esc(r.name)}: <b>${r.correct}/${r.total}</b> (${Math.round(r.accuracy*100)}%), wrong-but-confident: ${r.wrong_but_confident}</li>`).join("")||"<li class=mut>Run eval/run_eval.py</li>"}
+async function hist(){const h=await (await fetch("/api/history")).json();$("hist").innerHTML=h.map(x=>`<li>${new Date(x.ts*1000).toLocaleTimeString()} · ${x.scenario} → <b>${x.root_cause}</b></li>`).join("")||"<li class=mut>None yet</li>"}
+async function init(){const s=await (await fetch("/api/scenarios")).json();$("sc").innerHTML=s.map(x=>`<option value="${x.id}">${x.title}</option>`).join("");
+const h=await (await fetch("/api/health")).json();$("mode").value=h.groq?"llm":"rules";$("st").textContent=h.groq?"Groq key detected: tool-calling agent enabled":"No GROQ_API_KEY: rules + retrieval mode (set the key to enable the LLM agent)";bench();charts();hist()}
+const live=async(p,b)=>(await fetch("/api/live/"+p,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})})).json();
+async function stat(){if($("sc").value!=="live")return;const s=await (await fetch("/api/live/status")).json();$("ls").textContent="Ground truth (injected fault): "+(s.fault||"none")+" · tick "+s.tick}
+function sync(){$("livebox").style.display=$("sc").value==="live"?"block":"none";charts();stat()}
+$("sc").onchange=sync;$("seed").onchange=charts;
+$("inj").onclick=async()=>{await live("fault",{kind:$("fk").value,decoy:$("dc").checked});stat()};$("clr").onclick=async()=>{await live("clear");stat()};
+setInterval(()=>{if($("sc").value==="live"){charts();stat()}},3000);
+$("go").onclick=async()=>{$("go").disabled=true;$("out").innerHTML="<div class=card>Investigating…</div>";
+try{const r=await (await fetch("/api/investigate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({scenario:$("sc").value,seed:+$("seed").value,query:$("q").value,mode:$("mode").value})})).json(),R=r.report,ins=R.root_cause==="insufficient_evidence";
+$("out").innerHTML=`<div class="card"><div class="mut">Root cause</div><div class="big" style="color:var(--${ins?"bad":"ok"})">${esc(R.root_cause)}</div>
+<div class="mut" style="margin:8px 0 4px">Confidence (agreeing independent sources / 4): ${Math.round(R.confidence*100)}%</div><div class="bar"><i style="width:${R.confidence*100}%"></i></div>
+<p>${esc(R.summary)} ${R.llm?'<span class="tag">Groq</span>':'<span class="tag">rules</span>'}</p>${R.note?`<p class="mut">⚠ ${esc(R.note)}</p>`:""}</div>
+<div class="grid"><div class="card"><b>Evidence</b><ul>${R.evidence.map(e=>`<li><span class="tag">${e.source}</span>${esc(e.finding)}</li>`).join("")||"<li class=mut>None</li>"}</ul></div>
+<div class="card"><b>Mitigation</b><ul>${R.mitigation.map(m=>`<li>${esc(m)}</li>`).join("")}</ul></div></div>
+<div class="grid"><div class="card"><b>Timeline</b><ul>${R.timeline.map(t=>`<li><code>${t.t}</code> ${esc(t.event)}</li>`).join("")||"<li class=mut>None</li>"}</ul></div>
+<div class="card"><b>Agent trace</b><ul>${r.trace.map(t=>`<li><span class="tag">${t.step}</span>${esc(t.note)} <span class="mut">${t.ms}ms</span></li>`).join("")}</ul></div></div>`;hist()}
+catch(e){$("out").innerHTML="<div class=card>Error: "+esc(e)+"</div>"}$("go").disabled=false};
+init();
+</script></body></html>
